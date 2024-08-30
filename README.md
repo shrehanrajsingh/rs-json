@@ -65,6 +65,10 @@ main (int argc, char const *argv[])
   char *email = JSON_STRING (
     rs_json_query ("$['name']", t));
 
+  /* free allocated memory */
+  rsfree (fd);
+  rsvt_free (t->vt);
+
   return 0;
 }
 ```
