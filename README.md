@@ -16,7 +16,7 @@ The JSON Preprocessor is a tool that allows you to preprocess JSON files before 
 
 To build the JSON Preprocessor, you will need CMake installed on your system. Follow these steps to build the project:
 
-1. Clone the repository: `git clone https://github.com/shrehanrajsingh/rsjson.git`
+1. Clone the repository: `git clone https://github.com/shrehanrajsingh/rs-json.git`
 2. Create a build directory: `mkdir build && cd build`
 3. Generate the build files: `cmake ..`
 4. Build the project: `cmake --build .`
