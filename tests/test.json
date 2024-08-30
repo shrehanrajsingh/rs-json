@@ -1,0 +1,10 @@
+{
+    "name": "test",
+    "version": "1.0.0",
+    "hi": "Hello World!",
+    "test": 23.4,
+    "o": {
+        "p": "1",
+        "q": 2
+    }
+}
