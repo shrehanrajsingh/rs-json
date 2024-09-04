@@ -71,13 +71,13 @@ rsvt_get_key (rsvt_t *vt, const char *name)
   unsigned long hs = djb2 (name);
 
   struct _vt_node_s *r = &vt->nodes[hs];
-  int i = 0;
+  int i = r->size - 1;
 
   if (!r->size)
     return NULL;
 
-  while (i < r->size && strcmp (r->vals[i].name, name))
-    i++;
+  while (i > -1 && strcmp (r->vals[i].name, name))
+    i--;
 
   return r->vals[i].val;
 }

@@ -6,6 +6,7 @@
 #include "rsvtable.h"
 
 #define JSON_BUFFER_CAP 1024
+#define JSON_ARR_CAP 16
 
 typedef char *json_string_t;
 typedef long long json_int_t;
@@ -24,10 +25,23 @@ enum
   JTYPE_FLOAT = 2,
   JTYPE_BOOL = 3,
   JTYPE_OBJ = 4,
+  JTYPE_ARRAY = 5,
   JTYPE_EOF,
 };
 
 struct _json_instance_s;
+
+struct _val_s;
+struct _arr_s
+{
+  int len;
+  int cap;
+
+  struct _val_s **vals;
+};
+
+typedef struct _arr_s jarr_t;
+
 struct _val_s
 {
   int type;
@@ -39,6 +53,7 @@ struct _val_s
     json_float_t floatv;
     json_bool_t boolv;
     struct _json_instance_s *objv;
+    jarr_t *arrv;
 
   } v;
 };
@@ -60,6 +75,10 @@ extern "C"
   RS_API char *readfile (const char *_PathToFile);
   RS_API int rs_json_parse (const char *_B, json_t *);
   RS_API void _json_print_val (jval_t);
+
+  RS_API jarr_t *rs_jarr_new (void);
+  RS_API void rs_jarr_free (jarr_t *);
+  RS_API void rs_jarr_add (jarr_t *, jval_t *);
 
   RS_API void *rs_json_query (const char *_Q, json_t *_Inst);
   RS_API void *rs_valcast (jval_t *);

@@ -165,6 +165,8 @@ rs_json_parse (const char *b, json_t *inst)
       i++;
     }
 
+  rsfree (buf);
+
   return JSON_ESUCCESS;
 }
 
@@ -180,7 +182,12 @@ __parse_val (char *b)
   if (*b == '\"')
     {
       b++;
-      b[strlen (b) - 1] = '\0';
+      size_t bl = strlen (b);
+
+      while (b[bl - 1] != '\"')
+        b[--bl] = '\0';
+
+      b[--bl] = '\0';
 
       t->type = JTYPE_STRING;
       t->v.strv = (json_string_t)rsstrdup (b);
@@ -192,7 +199,7 @@ __parse_val (char *b)
     {
       double num = 0.0f;
       double dpart = 0.0f;
-      char saw_float;
+      char saw_float = 0;
 
       while (*b >= '0' && *b <= '9')
         {
@@ -232,10 +239,10 @@ __parse_val (char *b)
     }
 
   int i = 0;
-  while (b[i])
-    {
-      char c = b[i];
+  char c;
 
+  while ((c = b[i]))
+    {
       switch (c)
         {
         case '{':
@@ -253,7 +260,43 @@ __parse_val (char *b)
 
         case '[':
           {
-            // TODO
+            int last_idx = i + 1;
+            int gb = 0;
+            int in_str = 0;
+
+            jarr_t *arr = rs_jarr_new ();
+
+            for (int j = last_idx; b[j]; j++)
+              {
+                char q = b[j];
+
+                if (q == '\"' && b[j - 1] != '\\')
+                  in_str = !in_str;
+
+                if (!in_str)
+                  {
+                    if ((q == ',' || q == ']') && !gb)
+                      {
+                        b[j] = '\0';
+                        rs_jarr_add (arr, __parse_val (b + last_idx));
+
+                        b[j] = ',';
+                        last_idx = j + 1;
+
+                        if (q == ']')
+                          break;
+                      }
+
+                    if (q == '(' || q == '{' || q == '[')
+                      gb++;
+
+                    if (q == ')' || q == '}' || q == ']')
+                      gb--;
+                  }
+              }
+
+            t->type = JTYPE_ARRAY;
+            t->v.arrv = arr;
           }
           break;
 
@@ -307,6 +350,32 @@ _json_print_val (jval_t v)
     case JTYPE_OBJ:
       {
         printf ("object\n");
+        json_t *t = v.v.objv;
+
+        for (int i = 0; i < RSVT_NODESIZE; i++)
+          {
+            if (t->vt->nodes[i].size)
+              {
+                for (int j = t->vt->nodes[i].size - 1; j > -1; j--)
+                  {
+                    printf ("name: %s\nval= ", t->vt->nodes[i].vals[j].name);
+                    _json_print_val (*(jval_t *)t->vt->nodes[i].vals[j].val);
+                  }
+              }
+          }
+      }
+      break;
+
+    case JTYPE_ARRAY:
+      {
+        jarr_t *t = v.v.arrv;
+        printf ("array (%d)\n", t->len);
+
+        for (int i = 0; i < t->len; i++)
+          {
+            printf ("val (%d): ", i);
+            _json_print_val (*t->vals[i]);
+          }
       }
       break;
 
@@ -320,6 +389,10 @@ RS_API void *
 rs_json_query (const char *q, json_t *t)
 {
   json_t *ci = t; /* current instance */
+
+  jarr_t *cj = NULL;
+  char using_cj = 0;
+
   int i = 0;
 
   void *res;
@@ -377,20 +450,6 @@ rs_json_query (const char *q, json_t *t)
               if (q[i] >= '0' && q[i] <= '9')
                 saw_num = 1;
 
-              else
-                {
-                  /**
-                   * Probably a syntax error where
-                   * two numbers are written consequtively
-                   * separated by whitespace characters.
-                   * In that case, reset buffer
-                   */
-                  if (saw_num)
-                    {
-                      saw_num = 0;
-                      bs = 0;
-                    }
-                }
 #if defined(RSJSON_OPT_1)
               if (bs >= JSON_BUFFER_CAP)
                 {
@@ -434,12 +493,21 @@ rs_json_query (const char *q, json_t *t)
               jval_t *g = rsvt_get_key (ci->vt, buf);
 
               if (g == NULL)
-                e_printf ("key '%s' not found.\n", buf);
+                {
+                  e_printf ("key '%s' not found.\n", buf);
+                  exit (-1);
+                }
 
               else
                 {
                   if (g->type == JTYPE_OBJ)
                     ci = g->v.objv;
+
+                  else if (g->type == JTYPE_ARRAY)
+                    {
+                      using_cj = 1;
+                      cj = g->v.arrv;
+                    }
 
                   res = rs_valcast (g);
                 }
@@ -447,7 +515,47 @@ rs_json_query (const char *q, json_t *t)
 
           else if (saw_num)
             {
-              // TODO
+              assert (using_cj);
+              assert (cj != NULL);
+
+              int idx = 0, j = 0;
+
+              if (buf[j] == '-')
+                {
+                  e_printf ("negative index is not supported in '%s'.\n",
+                            __FUNCTION__);
+
+                  exit (-1);
+                }
+
+              while (buf[j])
+                {
+                  idx = idx * 10 + (buf[j] - '0');
+                  j++;
+                }
+
+              if (cj->len < idx)
+                {
+                  e_printf ("array index out of bounds.\n");
+
+                  exit (-1);
+                }
+
+              jval_t *v = cj->vals[idx];
+
+              if (v->type == JTYPE_OBJ)
+                ci = v->v.objv;
+
+              res = rs_valcast (v);
+
+              if (v->type == JTYPE_ARRAY)
+                cj = v->v.arrv;
+
+              else
+                {
+                  using_cj = 0;
+                  cj = NULL;
+                }
             }
 
           /* reset flags */
@@ -490,9 +598,47 @@ rs_valcast (jval_t *v)
       r = (void *)v->v.strv;
       break;
 
+    case JTYPE_ARRAY:
+      r = (void *)v->v.arrv;
+      break;
+
     default:
       break;
     }
 
   return r;
+}
+
+RS_API jarr_t *
+rs_jarr_new (void)
+{
+  jarr_t *t = rsmalloc (sizeof (*t));
+
+  t->cap = JSON_ARR_CAP;
+  t->len = 0;
+  t->vals = rsmalloc (t->cap * sizeof (*t->vals));
+
+  return t;
+}
+
+RS_API void
+rs_jarr_free (jarr_t *t)
+{
+  for (size_t i = 0; i < t->len; i++)
+    rsfree (t->vals[i]);
+
+  rsfree (t->vals);
+  rsfree (t);
+}
+
+RS_API void
+rs_jarr_add (jarr_t *t, jval_t *v)
+{
+  if (t->len == t->cap)
+    {
+      t->cap += JSON_ARR_CAP;
+      t->vals = rsrealloc (t->vals, t->cap * sizeof (*t->vals));
+    }
+
+  t->vals[t->len++] = v;
 }
