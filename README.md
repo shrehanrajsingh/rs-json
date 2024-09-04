@@ -63,7 +63,7 @@ main (int argc, char const *argv[])
     rs_json_query ("$['age']", t)); /* better to cast explicitly in case of numerical data types. */
 
   char *email = JSON_STRING (
-    rs_json_query ("$['name']", t));
+    rs_json_query ("$['email']", t));
 
   /* free allocated memory */
   rsfree (fd);
