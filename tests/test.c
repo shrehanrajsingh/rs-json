@@ -23,11 +23,25 @@ main (int argc, char const *argv[])
   //       }
   //   }
 
-  printf ("%d\n", (int)JSON_INT (rs_json_query ("$['arr'][0]", t)));
-  printf ("%s\n", JSON_STRING (rs_json_query ("$['arr'][4]['7']", t)));
+  // printf ("%d\n", (int)JSON_INT (rs_json_query ("$['arr'][0]", t)));
+  // printf ("%s\n", JSON_STRING (rs_json_query ("$['arr'][4]['7']", t)));
 
-  json_t *j = rs_json_query ("$['arr'][4]", t);
-  _json_print_val ((jval_t){ .type = JTYPE_OBJ, .v.objv = j });
+  // json_t *j = rs_json_query ("$['arr'][4]", t);
+  // _json_print_val ((jval_t){ .type = JTYPE_OBJ, .v.objv = j });
+
+  jarr_t *p = (jarr_t *)rs_json_query ("$['arr']", t);
+
+  for (size_t i = 0; i < p->len; i++)
+    {
+      _json_print_val (*p->vals[i]);
+    }
+
+  p = (jarr_t *)rs_json_query ("$['name']", t);
+
+  for (size_t i = 0; i < p->len; i++)
+    {
+      _json_print_val (*p->vals[i]);
+    }
 
   return printf ("Program Ended.\n") && 0;
 }

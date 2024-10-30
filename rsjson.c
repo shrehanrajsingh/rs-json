@@ -90,6 +90,9 @@ rs_json_parse (const char *b, json_t *inst)
         {
           if (!saw_colon) /* `key` section */
             {
+              if (i && b[i - 1] == '\\')
+                goto _key_append;
+
               if (reading_key) /* stop reading key */
                 key[kl] = '\0';
 
@@ -105,6 +108,7 @@ rs_json_parse (const char *b, json_t *inst)
 
       if (reading_key)
         {
+        _key_append:;
           assert (kl < 32);
           key[kl++] = c;
 
@@ -134,6 +138,7 @@ rs_json_parse (const char *b, json_t *inst)
         {
         _ps_vl:;
           // parse value
+          buf[bsize] = '\0';
           jval_t *r = __parse_val (buf);
 
           rsvt_add_key (inst->vt, key, (void *)r);
@@ -146,6 +151,8 @@ rs_json_parse (const char *b, json_t *inst)
           bsize = 0;
           saw_colon = 0;
           kl = 0;
+          in_str = 0;
+          gb = 0;
 
           goto end;
         }
@@ -238,10 +245,17 @@ __parse_val (char *b)
       goto ret;
     }
 
+  if (strstr (b, "true") == b || strstr (b, "false") == b)
+    {
+      t->type = JTYPE_BOOL;
+      t->v.boolv = (json_bool_t)(*b == 't');
+      goto ret;
+    }
+
   int i = 0;
   char c;
 
-  while ((c = b[i]))
+  while ((c = b[i]) != '\0')
     {
       switch (c)
         {
@@ -280,7 +294,7 @@ __parse_val (char *b)
                         b[j] = '\0';
                         rs_jarr_add (arr, __parse_val (b + last_idx));
 
-                        b[j] = ',';
+                        b[j] = q;
                         last_idx = j + 1;
 
                         if (q == ']')
@@ -297,6 +311,7 @@ __parse_val (char *b)
 
             t->type = JTYPE_ARRAY;
             t->v.arrv = arr;
+            goto ret;
           }
           break;
 
@@ -534,7 +549,7 @@ rs_json_query (const char *q, json_t *t)
                   j++;
                 }
 
-              if (cj->len < idx)
+              if (cj->len <= idx)
                 {
                   e_printf ("array index out of bounds.\n");
 
