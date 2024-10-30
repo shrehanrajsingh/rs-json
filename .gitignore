@@ -1,3 +1,6 @@
 .vscode/
 build/
 .idea/
+tests/large-file.json
+.DS_Store
+a.out
